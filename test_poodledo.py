@@ -42,7 +42,7 @@ class PoodleDoTest(unittest.TestCase):
             self.app_token = config.get('application', 'token')
             if not cached_client:
                 cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token)
-        return super(MyTest, self).__init__(methodName)
+        return super(PoodleDoTest, self).__init__(methodName)
 
 
     def setUp(self):
@@ -103,7 +103,7 @@ class PoodleDoTest(unittest.TestCase):
         #test parse
         datetime.fromtimestamp(int(info.lastedit_task))-timedelta(hours = .5*int(info.timezone))
         if self.mocked:
-            self.assertEquals(info.lastedit_task, 1228476730)
+            self.assertEquals(info.lastedit_task, '1228476730')
         else:
             assert info.lastedit_task.isdigit()
 
