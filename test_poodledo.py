@@ -2,11 +2,8 @@
 # -*- coding: UTF-8 -*-
 
 import sys
-import os
 
 import unittest
-import urllib2
-import time
 from datetime import datetime,timedelta
 
 from poodledo.apiclient import ApiClient, ToodledoError
@@ -26,9 +23,6 @@ class MockOpener(object):
             return open(self.url_map[url],'r')
         else:
             raise AssertionError("Unexpected url requested:  "+url)
-            # print url
-            return open(self.url_map['default'],'r')
-
 
 class PoodleDoTest(unittest.TestCase):
     def __init__(self, methodName='runTest'):
@@ -42,7 +36,7 @@ class PoodleDoTest(unittest.TestCase):
             self.app_token = config.get('application', 'token')
             if not cached_client:
                 cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token)
-        return super(PoodleDoTest, self).__init__(methodName)
+        super(PoodleDoTest, self).__init__(methodName)
 
 
     def setUp(self):
@@ -94,6 +88,7 @@ class PoodleDoTest(unittest.TestCase):
     def test_authenticate(self):
         api = self._createApiClient()
 
+        self.assertFalse( api.isAuthenticated)
         api.authenticate(self.user_email, self.password)
         self.assertTrue( api.isAuthenticated )
 
@@ -109,7 +104,7 @@ class PoodleDoTest(unittest.TestCase):
 
 def suite():
     loader = unittest.TestLoader()
-    testsuite = loader.loadTestsFromTestCase(MyTest)
+    testsuite = loader.loadTestsFromTestCase(PoodleDoTest)
     return testsuite
 
 

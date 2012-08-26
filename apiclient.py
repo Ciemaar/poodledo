@@ -170,6 +170,7 @@ class ApiClient(object):
         self._token = bool(self._token) and self._token or self.getToken(self._userid)
         self._key = bool(self._key) and self._key or self.generateKey(self._token, self.application_token, passwd)
 
+    @property
     def isAuthenticated(self):
         '''Returns whether the session has been authenticated.'''
         return bool(self._key)
