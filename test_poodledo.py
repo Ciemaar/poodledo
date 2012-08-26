@@ -12,6 +12,7 @@ from datetime import datetime,timedelta
 from poodledo.apiclient import ApiClient, ToodledoError
 from poodledo.cli import get_config
 
+cached_client = None
 
 class MockOpener(object):
     def __init__(self):
@@ -28,17 +29,19 @@ class MockOpener(object):
             # print url
             return open(self.url_map['default'],'r')
 
-class MyTest(unittest.TestCase):
 
-
+class PoodleDoTest(unittest.TestCase):
     def __init__(self, methodName='runTest'):
         self.mocked = True
         if not self.mocked:
+            global cached_client
             config = get_config()
             self.user_email = config.get('config', 'username')
             self.password = config.get('config', 'password')
             self.app_id = config.get('application', 'id')
             self.app_token = config.get('application', 'token')
+            if not cached_client:
+                cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token)
         return super(MyTest, self).__init__(methodName)
 
 
@@ -66,9 +69,11 @@ class MyTest(unittest.TestCase):
 
 
     def _createApiClient(self,authenticate=False):
-        api = ApiClient(app_id=self.app_id,app_token=self.app_token)
         if self.mocked:
+            api = ApiClient(app_id=self.app_id,app_token=self.app_token)
             api._urlopener = self.opener
+        else:
+            api = cached_client
         if authenticate:
             api.authenticate(self.user_email, self.password)
         return api
@@ -95,15 +100,12 @@ class MyTest(unittest.TestCase):
     def test_getAccountInfo(self):
         api = self._createApiClient(True)
         info = api.getAccountInfo()
-        self.assertEquals(info.unixtime, 1228476730)
-        # self.assertEquals(info.date, 'Fri, 05 Dec 2008 05:32:10 -0600')
-        if time.daylight:
-            self.assertEquals(info.date, datetime(2008, 12, 5, 11, 32, 10) - timedelta(seconds=time.altzone))
+        #test parse
+        datetime.fromtimestamp(int(info.lastedit_task))-timedelta(hours = .5*int(info.timezone))
+        if self.mocked:
+            self.assertEquals(info.lastedit_task, 1228476730)
         else:
-            self.assertEquals(info.date, datetime(2008, 12, 5, 11, 32, 10) - timedelta(seconds=time.timezone))
-
-        self.assertEquals(info.tokenexpires, 238.53)
-
+            assert info.lastedit_task.isdigit()
 
 def suite():
     loader = unittest.TestLoader()
