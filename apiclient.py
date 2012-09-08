@@ -81,8 +81,9 @@ class ApiClient(object):
     ''' Toodledo API client'''
     _SERVICE_URL = 'api.toodledo.com/2'
 
-    def __init__(self, key=None, app_id=None, app_token=None):
+    def __init__(self, key=None, app_id=None, app_token=None, cache_xml=False):
         ''' Initializes a new ApiClient w/o auth credentials'''
+        self.cache_xml = cache_xml
         self._key = key
         self.application_id = app_id
         self.application_token = app_token
@@ -98,6 +99,7 @@ class ApiClient(object):
         self._locations_cache = None
         self._notebooks_cache = None
         self._tasks_cache = None
+        self._xml_cache = {}
 
     @property
     def userid(self):
@@ -122,7 +124,12 @@ class ApiClient(object):
         '''Performs the actual API call and parses the output'''
         url = self._create_url(f='xml', **kwargs)
         stream = self._urlopener.open(url)
-        root_node = ET.parse(stream).getroot()
+        if self.cache_xml:
+            stream = str(stream.read())
+            self._xml_cache[url] = stream
+            root_node = ET.fromstring(stream)
+        else:
+            root_node = ET.parse(stream).getroot()
         if root_node.tag == 'error':
             raise ToodledoError(root_node.text)
         return root_node

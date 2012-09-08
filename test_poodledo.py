@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
+from pprint import pprint
 
 import sys
 
@@ -10,6 +11,10 @@ from poodledo.apiclient import ApiClient, ToodledoError
 from poodledo.cli import get_config
 
 cached_client = None
+
+
+def tasks_to_dict(taskList):
+    return dict((task.id,task) for task in taskList)
 
 class MockOpener(object):
     def __init__(self):
@@ -35,13 +40,13 @@ class PoodleDoTest(unittest.TestCase):
             self.app_id = config.get('application', 'id')
             self.app_token = config.get('application', 'token')
             if not cached_client:
-                cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token)
+                cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token,cache_xml=True)
         super(PoodleDoTest, self).__init__(methodName)
 
 
     def setUp(self):
+        self.opener = MockOpener()
         if self.mocked:
-            self.opener = MockOpener()
             self.opener.add_file('default', 'testdata/error.xml')
             self.opener.add_file(
                 #   'https://api.toodledo.com/2/account/lookup.php?appid=PoodledoAppTest&email=test%40test.de&f=xml&pass=mypassword&sig=40f30694b091f2c98e8c192885604beb'
@@ -56,6 +61,7 @@ class PoodleDoTest(unittest.TestCase):
             self.opener.add_file(
                     'http://api.toodledo.com/2/account/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
                     'testdata/getServerInfo.xml')
+
             self.user_email = 'test@test.de'
             self.password = 'mypassword'
             self.app_id = 'PoodledoAppTest'
@@ -85,10 +91,17 @@ class PoodleDoTest(unittest.TestCase):
         token = api.getToken('sampleuserid156')
         self.assertEquals(token, 'td493900752ca4d')
 
-    def test_authenticate(self):
+    def test__authenticate(self):
+        """
+        This task is a named with an extra underscore so that it can
+        run in unmocked mode as long as the test runner sorts it to
+        the top.  If your testrunner does not do that then this test
+        should be expected to fail with the error
+        "Already authenticated"
+        """
         api = self._createApiClient()
 
-        self.assertFalse( api.isAuthenticated)
+        self.assertFalse( api.isAuthenticated,"Already authenticated")
         api.authenticate(self.user_email, self.password)
         self.assertTrue( api.isAuthenticated )
 
@@ -99,8 +112,60 @@ class PoodleDoTest(unittest.TestCase):
         datetime.fromtimestamp(int(info.lastedit_task))-timedelta(hours = .5*int(info.timezone))
         if self.mocked:
             self.assertEquals(info.lastedit_task, '1228476730')
+            assert not api.isPro()
         else:
             assert info.lastedit_task.isdigit()
+
+    def test_getTasks(self):
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasks.xml'
+        )
+        api = self._createApiClient(True)
+        tasks = api.getTasks()
+
+        expected_tasks={43635427: {'completed': 0, 'id': 43635427, 'modified': 1345993845, 'title': u'Add some items to your todo list'},
+                        43635429: {'completed': 0, 'id': 43635429, 'modified': 1345993845, 'title': u'Visit your Account Settings section and configure your account.'},
+                        43649333: {'completed': 0, 'id': 43649333, 'modified': 1346000146, 'title': u'Test Task'}}
+        self.assertEquals(len(tasks), len(expected_tasks))
+        for task in tasks:
+            assert all(expected_tasks[task.id][field] == getattr(task,field) for field in expected_tasks[task.id])
+
+    def test_addDeleteTask(self):
+        self.opener.add_file('http://api.toodledo.com/2/tasks/add.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686&tasks=[{"title"%3A"Added+task"}]',
+            'testdata/addTask.xml')
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasks.xml'
+        )
+
+        api = self._createApiClient(True)
+        tasksBefore = tasks_to_dict(api.getTasks())
+        testTaskTitle = "Added task"
+        api.addTask(title=testTaskTitle)
+
+
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasksPostAdd.xml'
+        )
+        tasksAfter = tasks_to_dict(api.getTasks())
+        assert len(tasksAfter) - len(tasksBefore) == 1
+
+        addedTask = tasksAfter[(set(tasksAfter)-set(tasksBefore)).pop()]
+        assert addedTask.title == testTaskTitle,"Found added task:\n"+str(addedTask)
+
+        self.opener.add_file('http://api.toodledo.com/2/tasks/delete.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686&tasks=[46420424]',
+            'testdata/deleteTask.xml')
+        api.deleteTask(testTaskTitle)
+
+        pprint(api._xml_cache)
+
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasks.xml'
+        )
+        assert len(api.getTasks()) == len(tasksBefore)
 
 def suite():
     loader = unittest.TestLoader()
