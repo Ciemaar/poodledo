@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime,timedelta
 
 from poodledo.apiclient import ApiClient, ToodledoError
-from poodledo.cli import get_config
+from poodledo.cli import get_config, store_config
 
 cached_client = None
 
@@ -41,6 +41,8 @@ class PoodleDoTest(unittest.TestCase):
             self.app_token = config.get('application', 'token')
             if not cached_client:
                 cached_client = ApiClient(app_id=self.app_id,app_token=self.app_token,cache_xml=True)
+                config.set('cache','user_token',str(cached_client._key))
+                store_config(config)
         super(PoodleDoTest, self).__init__(methodName)
 
 
@@ -160,6 +162,60 @@ class PoodleDoTest(unittest.TestCase):
         api.deleteTask(testTaskTitle)
 
         pprint(api._xml_cache)
+
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasks.xml'
+        )
+        assert len(api.getTasks()) == len(tasksBefore)
+
+    def test_getEditTask(self):
+        self.opener.add_file('http://api.toodledo.com/2/tasks/add.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686&tasks=[{"title"%3A"Added+task"}]',
+            'testdata/addTask.xml')
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&fields=note&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasksNote.xml'
+        )
+        self.opener.add_file('http://api.toodledo.com/2/tasks/edit.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686&tasks=[{"note"%3A"More+Text"%2C"id"%3A46420424}]',
+            'testdata/editTask.xml')
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasksPostAdd.xml'
+        )
+
+        api = self._createApiClient(True)
+        tasksBefore = tasks_to_dict(api.getTasks(fields='note'))
+        testTaskTitle = "Added task"
+        api.addTask(title=testTaskTitle)
+
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&fields=note&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasksPostAddNote.xml'
+        )
+        tasksAfter = tasks_to_dict(api.getTasks(fields='note'))
+        self.assertEqual(len(tasksAfter) - len(tasksBefore),1)
+
+        addedTask = tasksAfter[(set(tasksAfter)-set(tasksBefore)).pop()]
+        assert addedTask.title == testTaskTitle,"Found added task:\n"+str(addedTask)
+        self.assertEqual(addedTask.note,'None')
+
+        api.editTask(testTaskTitle,note="More Text")
+
+        pprint(api._xml_cache)
+        self.opener.add_file(
+            'http://api.toodledo.com/2/tasks/get.php?f=xml&fields=note&key=6f931665ef2604b76b82ae814aa9a686',
+            'testdata/getTasksPostEditNote.xml'
+        )
+        postEdit = api.getTask(testTaskTitle,fields='note')
+        pprint(api._xml_cache)
+
+        pprint(postEdit)
+        self.assertEquals(postEdit.note,"More Text")
+
+        self.opener.add_file('http://api.toodledo.com/2/tasks/delete.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686&tasks=[46420424]',
+            'testdata/deleteTask.xml')
+        api.deleteTask(testTaskTitle)
+
 
         self.opener.add_file(
             'http://api.toodledo.com/2/tasks/get.php?f=xml&key=6f931665ef2604b76b82ae814aa9a686',

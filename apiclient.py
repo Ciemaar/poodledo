@@ -208,7 +208,7 @@ class ApiClient(object):
         '''Creates a new account.
         @return: userid - 15 or 16 character hexidecimal string
         '''
-        return self._call(method='createAccount', email=_email, pass_=pass_).text
+        return self._call(method='createAccount', email=email, pass_=pass_).text
 
     @check_api_key
     @returns_item
@@ -757,13 +757,13 @@ class ApiClient(object):
         else:
             return self._call(key=key, kind='tasks', action='get', **kwargs)
 
-    def getTask(self, label, cache=False):
+    def getTask(self, label, cache=False,**kwargs):
         '''Return a C{ToodledoData} object representing a task.
         @param label: The task's name, id, or a C{ToodledoData} object representing the task.
         @type label: C{str}/C{int}/C{ToodledoData}
         @raise PoodledoError: Throws an error if the task does not exist
         '''
-        for f in self.getTasks(cache=cache):
+        for f in self.getTasks(cache=cache,**kwargs):
             try:
                 if int(label) == f.id: return f
             except ValueError:
